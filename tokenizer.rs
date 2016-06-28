@@ -2,10 +2,10 @@ use std::error::Error;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::path::Path;
-use std::str::Chars;
 use std::iter::Enumerate;
 use std::iter::Peekable;
+use std::path::Path;
+use std::str::Chars;
 
 #[derive(Debug)]
 #[derive(Clone)]
@@ -26,35 +26,35 @@ enum Token {
     UseKeyword (TokLoc),
     WhileKeyword (TokLoc),
     Number (i64, TokLoc),
+    CharLit (String, TokLoc),
     Ident (String, TokLoc),
-    LParen (TokLoc),
-    RParen (TokLoc),
-    LBrace (TokLoc),
-    RBrace (TokLoc),
-    Semicolon (TokLoc),
-    DoubleColon (TokLoc),
-    Colon (TokLoc),
-    RThinArrow (TokLoc),
-    RFatArrow (TokLoc),
-    Equals (TokLoc),
-    DoubleEquals (TokLoc),
-    Minus (TokLoc),
+    StrLit (String, TokLoc),
+    Ampersand (TokLoc),
     Bang (TokLoc),
+    Colon (TokLoc),
+    Comma (TokLoc),
     Dot (TokLoc),
     DotDot (TokLoc),
-    Pipe (TokLoc),
-    DoublePipe (TokLoc),
-    Ampersand (TokLoc),
     DoubleAmpersand (TokLoc),
-    LWakka (TokLoc),
-    RWakka (TokLoc),
-    QuestionMark (TokLoc),
-    Comma (TokLoc),
+    DoubleColon (TokLoc),
+    DoubleEquals (TokLoc),
+    DoublePipe (TokLoc),
+    Equals (TokLoc),
+    LBrace (TokLoc),
     LBracket (TokLoc),
+    LParen (TokLoc),
+    LWakka (TokLoc),
+    Minus (TokLoc),
+    Pipe (TokLoc),
+    QuestionMark (TokLoc),
+    RBrace (TokLoc),
     RBracket (TokLoc),
+    RFatArrow (TokLoc),
+    RParen (TokLoc),
+    RThinArrow (TokLoc),
+    RWakka (TokLoc),
+    Semicolon (TokLoc),
     Underscore (TokLoc),
-    StrLit (String, TokLoc),
-    CharLit (String, TokLoc),
 }
 
 #[derive(Debug)]
@@ -67,37 +67,6 @@ struct TokLoc {
 fn print_tokens(tokens: &Vec<Token>) {
     for t in tokens {
         println!("{:?}", t);
-    }
-}
-
-fn tokenize_str(it: &mut Peekable<Enumerate<Chars>>, row: u64)
-    -> Option<Token>
-{
-    let mut s = String::new();
-
-    return if let Some (&(col, '"')) = it.peek() {
-        it.next();
-
-        let mut escaped = false;
-
-        while let Some ((_, c)) = it.next() {
-            if c == '"' && !escaped {
-                break;
-            }
-            if c == '\\' && !escaped {
-                escaped = true;
-            }
-            else {
-                escaped = false;
-            }
-
-            s.push(c);
-        }
-
-        Some (Token::StrLit(s, TokLoc {row: row, col: col as u64}))
-    }
-    else {
-        None
     }
 }
 
@@ -134,39 +103,6 @@ fn tokenize_char(it: &mut Peekable<Enumerate<Chars>>, row: u64)
     }
     else {
         None
-    }
-}
-
-fn tokenize_number(it: &mut Peekable<Enumerate<Chars>>, row: u64)
-    -> Option<Token>
-{
-    let mut s = String::new();
-
-    let mut col_capture = 0;
-
-    if let Some (&(col, _)) = it.peek() {
-        col_capture = col;
-    }
-
-    while let Some (&(_, c)) = it.peek() {
-        if c.is_digit(10) {
-            s.push(c);
-            it.next();
-        }
-        else {
-            break;
-        }
-    }
-
-    if s.len() == 0 {
-        return None;
-    }
-
-    match s.parse::<i64>() {
-        Ok (i) => return Some (
-            Token::Number(i, TokLoc {row: row, col: col_capture as u64})
-        ),
-        Err (msg) => panic!("Unexpected failure: {}", msg),
     }
 }
 
@@ -251,6 +187,39 @@ fn tokenize_ident(it: &mut Peekable<Enumerate<Chars>>, row: u64)
     }
     else {
         Some (Token::Ident(s, TokLoc {row: row, col: col_capture as u64}))
+    }
+}
+
+fn tokenize_number(it: &mut Peekable<Enumerate<Chars>>, row: u64)
+    -> Option<Token>
+{
+    let mut s = String::new();
+
+    let mut col_capture = 0;
+
+    if let Some (&(col, _)) = it.peek() {
+        col_capture = col;
+    }
+
+    while let Some (&(_, c)) = it.peek() {
+        if c.is_digit(10) {
+            s.push(c);
+            it.next();
+        }
+        else {
+            break;
+        }
+    }
+
+    if s.len() == 0 {
+        return None;
+    }
+
+    match s.parse::<i64>() {
+        Ok (i) => return Some (
+            Token::Number(i, TokLoc {row: row, col: col_capture as u64})
+        ),
+        Err (msg) => panic!("Unexpected failure: {}", msg),
     }
 }
 
@@ -396,6 +365,37 @@ fn tokenize_op(it: &mut Peekable<Enumerate<Chars>>, row: u64) -> Option<Token> {
             }
             _ => None,
         }
+    }
+    else {
+        None
+    }
+}
+
+fn tokenize_str(it: &mut Peekable<Enumerate<Chars>>, row: u64)
+    -> Option<Token>
+{
+    let mut s = String::new();
+
+    return if let Some (&(col, '"')) = it.peek() {
+        it.next();
+
+        let mut escaped = false;
+
+        while let Some ((_, c)) = it.next() {
+            if c == '"' && !escaped {
+                break;
+            }
+            if c == '\\' && !escaped {
+                escaped = true;
+            }
+            else {
+                escaped = false;
+            }
+
+            s.push(c);
+        }
+
+        Some (Token::StrLit(s, TokLoc {row: row, col: col as u64}))
     }
     else {
         None
