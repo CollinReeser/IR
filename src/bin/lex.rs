@@ -1,15 +1,36 @@
-use std::path::Path;
+extern crate getopts;
+use getopts::Options;
+
+use std::env;
+use std::error::Error;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::error::Error;
+use std::path::Path;
 
 extern crate ir;
 
 use ir::ir_lexer::*;
 
 fn main() {
-    let path = Path::new("lex.rs");
+    let args: Vec<String> = env::args().collect();
+    let mut opts = Options::new();
+    opts.reqopt("f", "file", "Input file to parse", "FILE");
+
+    let matches = match opts.parse(&args[1..]) {
+        Ok(m) => { m }
+        Err(f) => { panic!(f.to_string()) }
+    };
+
+    let filename = match matches.opt_str("f") {
+        Some(x) => x,
+        None => {
+            println!("Must provide a -f filename");
+            return;
+        },
+    };
+
+    let path = Path::new(&filename);
     let display = path.display();
 
     let mut file = match File::open(&path) {

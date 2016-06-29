@@ -8,11 +8,11 @@ use std::env;
 extern crate getopts;
 use getopts::Options;
 
-use std::path::Path;
+use std::error::Error;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::error::Error;
+use std::path::Path;
 
 
 fn main() {
