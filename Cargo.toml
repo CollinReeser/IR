@@ -1,0 +1,6 @@
+[package]
+name = "ir"
+version = "0.1.0"
+authors = ["Collin Reeser <collin.reeser@gmail.com>"]
+
+[dependencies]

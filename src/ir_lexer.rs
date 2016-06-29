@@ -1,37 +1,34 @@
-use std::error::Error;
-use std::fs::File;
-use std::io::BufRead;
-use std::io::BufReader;
 use std::iter::Enumerate;
 use std::iter::Peekable;
-use std::path::Path;
 use std::str::Chars;
 
 #[derive(Debug)]
 #[derive(Clone)]
-enum Token {
-    AsKeyword (TokLoc),
-    BreakKeyword (TokLoc),
-    ContinueKeyword (TokLoc),
-    ElseKeyword (TokLoc),
-    EnumKeyword (TokLoc),
-    FnKeyword (TokLoc),
-    ForKeyword (TokLoc),
-    IfKeyword (TokLoc),
-    InKeyword (TokLoc),
-    LetKeyword (TokLoc),
-    MatchKeyword (TokLoc),
-    MutKeyword (TokLoc),
-    ReturnKeyword (TokLoc),
-    UseKeyword (TokLoc),
-    WhileKeyword (TokLoc),
-    Number (i64, TokLoc),
+pub enum Token {
+    I8Keyword (TokLoc),
+    I16Keyword (TokLoc),
+    I32Keyword (TokLoc),
+    I64Keyword (TokLoc),
+    F32Keyword (TokLoc),
+    F64Keyword (TokLoc),
+    VoidKeyword (TokLoc),
+    FuncKeyword (TokLoc),
+    AddKeyword (TokLoc),
+    SubKeyword (TokLoc),
+
+    VarName (String, TokLoc),
+
+    Colon (TokLoc),
+
+    Integer (i64, TokLoc),
+
+
+
     CharLit (String, TokLoc),
     Ident (String, TokLoc),
     StrLit (String, TokLoc),
     Ampersand (TokLoc),
     Bang (TokLoc),
-    Colon (TokLoc),
     Comma (TokLoc),
     Dot (TokLoc),
     DotDot (TokLoc),
@@ -53,18 +50,18 @@ enum Token {
     RParen (TokLoc),
     RThinArrow (TokLoc),
     RWakka (TokLoc),
-    Semicolon (TokLoc),
     Underscore (TokLoc),
+    Pound (TokLoc),
 }
 
 #[derive(Debug)]
 #[derive(Clone)]
-struct TokLoc {
-    row: u64,
-    col: u64,
+pub struct TokLoc {
+    pub row: u64,
+    pub col: u64,
 }
 
-fn print_tokens(tokens: &Vec<Token>) {
+pub fn print_tokens(tokens: &Vec<Token>) {
     for t in tokens {
         println!("{:?}", t);
     }
@@ -106,6 +103,35 @@ fn tokenize_char(it: &mut Peekable<Enumerate<Chars>>, row: u64)
     }
 }
 
+fn tokenize_varname(it: &mut Peekable<Enumerate<Chars>>, row: u64)
+    -> Option<Token>
+{
+    let mut s = String::new();
+
+    return if let Some (&(col, '%')) = it.peek() {
+        it.next();
+
+        while let Some (&(_, c)) = it.peek() {
+            if c.is_digit(10) || c.is_alphabetic() || c == '_' {
+                s.push(c);
+                it.next();
+            }
+            else {
+                break;
+            }
+        }
+
+        if s.len() == 0 {
+            panic!("Cannot have zero-length varname at L:{} C:{}", row, col);
+        }
+
+        Some (Token::VarName(s, TokLoc {row: row, col: col as u64}))
+    }
+    else {
+        None
+    }
+}
+
 fn tokenize_ident(it: &mut Peekable<Enumerate<Chars>>, row: u64)
     -> Option<Token>
 {
@@ -128,50 +154,36 @@ fn tokenize_ident(it: &mut Peekable<Enumerate<Chars>>, row: u64)
     }
 
     let keyword = match s.as_ref() {
-        "as"       => Some (
-            Token::AsKeyword (TokLoc {row: row, col: col_capture as u64})
+
+        "i8"       => Some (
+            Token::I8Keyword (TokLoc {row: row, col: col_capture as u64})
         ),
-        "break"    => Some (
-            Token::BreakKeyword (TokLoc {row: row, col: col_capture as u64})
+        "i16"       => Some (
+            Token::I16Keyword (TokLoc {row: row, col: col_capture as u64})
         ),
-        "continue" => Some (
-            Token::ContinueKeyword (TokLoc {row: row, col: col_capture as u64})
+        "i32"       => Some (
+            Token::I32Keyword (TokLoc {row: row, col: col_capture as u64})
         ),
-        "else"     => Some (
-            Token::ElseKeyword (TokLoc {row: row, col: col_capture as u64})
+        "i64"       => Some (
+            Token::I64Keyword (TokLoc {row: row, col: col_capture as u64})
         ),
-        "enum"     => Some (
-            Token::EnumKeyword (TokLoc {row: row, col: col_capture as u64})
+        "f32"       => Some (
+            Token::F32Keyword (TokLoc {row: row, col: col_capture as u64})
         ),
-        "fn"       => Some (
-            Token::FnKeyword (TokLoc {row: row, col: col_capture as u64})
+        "f64"       => Some (
+            Token::F64Keyword (TokLoc {row: row, col: col_capture as u64})
         ),
-        "for"      => Some (
-            Token::ForKeyword (TokLoc {row: row, col: col_capture as u64})
+        "void"       => Some (
+            Token::VoidKeyword (TokLoc {row: row, col: col_capture as u64})
         ),
-        "if"       => Some (
-            Token::IfKeyword (TokLoc {row: row, col: col_capture as u64})
+        "func"       => Some (
+            Token::FuncKeyword (TokLoc {row: row, col: col_capture as u64})
         ),
-        "in"       => Some (
-            Token::InKeyword (TokLoc {row: row, col: col_capture as u64})
+        "add"       => Some (
+            Token::AddKeyword (TokLoc {row: row, col: col_capture as u64})
         ),
-        "let"      => Some (
-            Token::LetKeyword (TokLoc {row: row, col: col_capture as u64})
-        ),
-        "match"    => Some (
-            Token::MatchKeyword (TokLoc {row: row, col: col_capture as u64})
-        ),
-        "mut"      => Some (
-            Token::MutKeyword (TokLoc {row: row, col: col_capture as u64})
-        ),
-        "return"   => Some (
-            Token::ReturnKeyword (TokLoc {row: row, col: col_capture as u64})
-        ),
-        "use"      => Some (
-            Token::UseKeyword (TokLoc {row: row, col: col_capture as u64})
-        ),
-        "while"    => Some (
-            Token::WhileKeyword (TokLoc {row: row, col: col_capture as u64})
+        "sub"       => Some (
+            Token::SubKeyword (TokLoc {row: row, col: col_capture as u64})
         ),
         _          => None,
     };
@@ -217,7 +229,7 @@ fn tokenize_number(it: &mut Peekable<Enumerate<Chars>>, row: u64)
 
     match s.parse::<i64>() {
         Ok (i) => return Some (
-            Token::Number(i, TokLoc {row: row, col: col_capture as u64})
+            Token::Integer(i, TokLoc {row: row, col: col_capture as u64})
         ),
         Err (msg) => panic!("Unexpected failure: {}", msg),
     }
@@ -262,10 +274,6 @@ fn tokenize_op(it: &mut Peekable<Enumerate<Chars>>, row: u64) -> Option<Token> {
                 it.next();
                 Some (Token::RWakka (TokLoc {row: row, col: col as u64}))
             }
-            ';' => {
-                it.next();
-                Some (Token::Semicolon (TokLoc {row: row, col: col as u64}))
-            }
             '?' => {
                 it.next();
                 Some (Token::QuestionMark (TokLoc {row: row, col: col as u64}))
@@ -273,6 +281,10 @@ fn tokenize_op(it: &mut Peekable<Enumerate<Chars>>, row: u64) -> Option<Token> {
             ',' => {
                 it.next();
                 Some (Token::Comma (TokLoc {row: row, col: col as u64}))
+            }
+            '#' => {
+                it.next();
+                Some (Token::Pound (TokLoc {row: row, col: col as u64}))
             }
             ':' => {
                 it.next();
@@ -402,7 +414,7 @@ fn tokenize_str(it: &mut Peekable<Enumerate<Chars>>, row: u64)
     }
 }
 
-fn tokenize_line(line: &str, row: u64) -> Vec<Token> {
+pub fn tokenize_line(line: &str, row: u64) -> Vec<Token> {
     let mut tokens = Vec::new();
 
     let mut it = line.chars().enumerate().peekable();
@@ -411,7 +423,7 @@ fn tokenize_line(line: &str, row: u64) -> Vec<Token> {
         if c.is_whitespace() {
             it.next();
         }
-        else if c == '#' {
+        else if c == ';' {
             break;
         }
         else if let Some (str_tok) = tokenize_str(&mut it, row) {
@@ -426,6 +438,9 @@ fn tokenize_line(line: &str, row: u64) -> Vec<Token> {
         else if let Some (num_tok) = tokenize_number(&mut it, row) {
             tokens.push(num_tok);
         }
+        else if let Some (varname_tok) = tokenize_varname(&mut it, row) {
+            tokens.push(varname_tok);
+        }
         else if let Some (ident_tok) = tokenize_ident(&mut it, row) {
             tokens.push(ident_tok);
         }
@@ -435,33 +450,4 @@ fn tokenize_line(line: &str, row: u64) -> Vec<Token> {
     }
 
     return tokens;
-}
-
-fn main() {
-    let path = Path::new("tokenizer.rs");
-    let display = path.display();
-
-    let mut file = match File::open(&path) {
-        Err(why) => panic!(
-            "couldn't open {}: {}", display, why.description()
-        ),
-        Ok(file) => BufReader::new(file),
-    };
-
-    let mut s = String::new();
-    let mut tokens = Vec::new();
-
-    let mut row = 0;
-
-    while file.read_line(&mut s).unwrap() > 0 {
-        // print!("Line: {}", s);
-
-        tokens.extend(tokenize_line(&s, row));
-
-        row += 1;
-
-        s.clear();
-    }
-
-    print_tokens(&tokens);
 }
