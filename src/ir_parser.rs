@@ -16,6 +16,20 @@ pub enum Type {
     UserType (String),
 }
 
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Type::I8 => write!(f, "i8"),
+            &Type::I16 => write!(f, "i16"),
+            &Type::I32 => write!(f, "i32"),
+            &Type::I64 => write!(f, "i64"),
+            &Type::F32 => write!(f, "f32"),
+            &Type::F64 => write!(f, "f64"),
+            &Type::UserType (ref s) => write!(f, "{}", s),
+        }
+    }
+}
+
 #[derive(Debug)]
 #[derive(Clone)]
 pub struct Variable {
@@ -37,7 +51,7 @@ pub enum Node {
 pub fn print_ast(node: &Node) {
     match node {
         &Node::AddInst (ref t, ref v1, ref v2, ref v3) => {
-            println!("{}:{:?} = {} + {}", v1, t, v2, v3);
+            println!("add {}:{} {} {}", v1, t, v2, v3);
         }
         // _ => {},
     }

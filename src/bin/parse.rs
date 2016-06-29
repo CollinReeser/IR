@@ -3,15 +3,58 @@ extern crate ir;
 use ir::ir_lexer::*;
 use ir::ir_parser::*;
 
+use std::env;
+
+extern crate getopts;
+use getopts::Options;
+
+use std::path::Path;
+use std::fs::File;
+use std::io::BufRead;
+use std::io::BufReader;
+use std::error::Error;
+
+
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    let mut opts = Options::new();
+    opts.reqopt("f", "file", "Input file to parse", "FILE");
+
+    let matches = match opts.parse(&args[1..]) {
+        Ok(m) => { m }
+        Err(f) => { panic!(f.to_string()) }
+    };
+
+    let filename = match matches.opt_str("f") {
+        Some(x) => x,
+        None => {
+            println!("Must provide a -f filename");
+            return;
+        },
+    };
+
+    let path = Path::new(&filename);
+    let display = path.display();
+
+    let mut file = match File::open(&path) {
+        Err(why) => panic!(
+            "couldn't open {}: {}", display, why.description()
+        ),
+        Ok(file) => BufReader::new(file),
+    };
+
+    let mut s = String::new();
     let mut tokens = Vec::new();
 
-    tokens.push(Token::AddKeyword ({TokLoc {row: 0, col: 0}}));
-    tokens.push(Token::VarName ("target".to_string(), {TokLoc {row: 0, col: 0}}));
-    tokens.push(Token::Colon ({TokLoc {row: 0, col: 0}}));
-    tokens.push(Token::I8Keyword ({TokLoc {row: 0, col: 0}}));
-    tokens.push(Token::VarName ("src_left".to_string(), {TokLoc {row: 0, col: 0}}));
-    tokens.push(Token::VarName ("src_right".to_string(), {TokLoc {row: 0, col: 0}}));
+    let mut row = 0;
+
+    while file.read_line(&mut s).unwrap() > 0 {
+        tokens.extend(tokenize_line(&s, row));
+
+        row += 1;
+
+        s.clear();
+    }
 
     let node = parse(&tokens);
 
