@@ -4,13 +4,6 @@ use ir::ir_lexer::*;
 use ir::ir_parser::*;
 
 fn main() {
-    // let node = Node::AddInst(
-    //     Type::I8,
-    //     Variable {name: "target".to_string()},
-    //     Variable {name: "left".to_string()},
-    //     Variable {name: "right".to_string()},
-    // );
-
     let mut tokens = Vec::new();
 
     tokens.push(Token::AddKeyword ({TokLoc {row: 0, col: 0}}));
