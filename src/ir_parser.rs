@@ -93,48 +93,77 @@ fn parse_type(it: &mut Peekable<Iter<Token>>) -> Option<Type> {
     };
 }
 
-fn parse_add(it: &mut Peekable<Iter<Token>>) -> Option<Node> {
-    return if let Some (&&Token::AddKeyword (ref tl)) = it.peek() {
+fn parse_var_type_pair(it: &mut Peekable<Iter<Token>>)
+    -> Option<(Variable, Type)>
+{
+    return if let Some (&&Token::VarName (ref target, ref tl)) = it.peek() {
         it.next();
 
-        if let Some (&&Token::VarName (ref target, ref tl)) = it.peek() {
+        if let Some (&&Token::Colon (ref tl)) = it.peek() {
             it.next();
 
-            if let Some (&&Token::Colon (ref tl)) = it.peek() {
-                it.next();
-
-                if let Some (type_node) = parse_type(it) {
-                    if let Some (&&Token::VarName (ref src_left, ref tl)) = it.peek() {
-                        it.next();
-
-                        if let Some (&&Token::VarName (ref src_right, _)) = it.peek() {
-                            it.next();
-
-                            Some (Node::AddInst (
-                                type_node,
-                                Variable {name: target.to_owned()},
-                                Variable {name: src_left.to_owned()},
-                                Variable {name: src_right.to_owned()},
-                            ))
-                        }
-                        else {
-                            panic!("Expected variable name, got trash: {:?}", tl);
-                        }
-                    }
-                    else {
-                        panic!("Expected variable name, got trash: {:?}", tl);
-                    }
-                }
-                else {
-                    panic!("Expected type, got trash: {:?}", tl);
-                }
+            if let Some (type_node) = parse_type(it) {
+                Some ((
+                    Variable {name: target.to_owned()}, type_node
+                ))
             }
             else {
-                panic!("Expected ':', got trash: {:?}", tl);
+                panic!("Expected type, got trash: {:?}", tl);
             }
         }
         else {
-            panic!("Expected variable name, got trash: {:?}", tl);
+            panic!("Expected ':', got trash: {:?}", tl);
+        }
+    }
+    else {
+        None
+    };
+}
+
+fn parse_binary_input_vars(it: &mut Peekable<Iter<Token>>)
+    -> Option<(Variable, Variable)>
+{
+    return if let Some (&&Token::VarName (ref left_src, ref tl)) = it.peek() {
+        it.next();
+
+        if let Some (&&Token::VarName (ref right_src, _)) = it.peek() {
+            it.next();
+
+            Some ((
+                Variable {name: left_src.to_owned()},
+                Variable {name: right_src.to_owned()}
+            ))
+        }
+        else {
+            panic!("Expected ':', got trash: {:?}", tl);
+        }
+    }
+    else {
+        None
+    };
+}
+
+fn parse_add(mut it: &mut Peekable<Iter<Token>>) -> Option<Node> {
+    return if let Some (&&Token::AddKeyword (ref tl)) = it.peek() {
+        it.next();
+
+        if let Some ((target_var, target_type)) = parse_var_type_pair(&mut it) {
+            if let Some ((left_src, right_src))
+                = parse_binary_input_vars(&mut it)
+            {
+                Some (Node::AddInst (
+                    target_type,
+                    target_var,
+                    left_src,
+                    right_src,
+                ))
+            }
+            else {
+                panic!("Expected binary input vars, got trash: {:?}", tl);
+            }
+        }
+        else {
+            panic!("Expected <var>:<type> pair, got trash: {:?}", tl);
         }
     }
     else {
