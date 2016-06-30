@@ -15,12 +15,19 @@ pub enum Token {
     FuncKeyword (TokLoc),
     AddKeyword (TokLoc),
     SubKeyword (TokLoc),
+    LoadKeyword (TokLoc),
 
     VarName (String, TokLoc),
+    FuncName (String, TokLoc),
 
     Colon (TokLoc),
+    LParen (TokLoc),
+    RParen (TokLoc),
+    LBrace (TokLoc),
+    RBrace (TokLoc),
 
     Integer (i64, TokLoc),
+
 
 
 
@@ -37,17 +44,13 @@ pub enum Token {
     DoubleEquals (TokLoc),
     DoublePipe (TokLoc),
     Equals (TokLoc),
-    LBrace (TokLoc),
     LBracket (TokLoc),
-    LParen (TokLoc),
     LWakka (TokLoc),
     Minus (TokLoc),
     Pipe (TokLoc),
     QuestionMark (TokLoc),
-    RBrace (TokLoc),
     RBracket (TokLoc),
     RFatArrow (TokLoc),
-    RParen (TokLoc),
     RThinArrow (TokLoc),
     RWakka (TokLoc),
     Underscore (TokLoc),
@@ -132,6 +135,35 @@ fn tokenize_varname(it: &mut Peekable<Enumerate<Chars>>, row: u64)
     }
 }
 
+fn tokenize_funcname(it: &mut Peekable<Enumerate<Chars>>, row: u64)
+    -> Option<Token>
+{
+    let mut s = String::new();
+
+    return if let Some (&(col, '@')) = it.peek() {
+        it.next();
+
+        while let Some (&(_, c)) = it.peek() {
+            if c.is_digit(10) || c.is_alphabetic() || c == '_' {
+                s.push(c);
+                it.next();
+            }
+            else {
+                break;
+            }
+        }
+
+        if s.len() == 0 {
+            panic!("Cannot have zero-length funcname at L:{} C:{}", row, col);
+        }
+
+        Some (Token::FuncName(s, TokLoc {row: row, col: col as u64}))
+    }
+    else {
+        None
+    }
+}
+
 fn tokenize_ident(it: &mut Peekable<Enumerate<Chars>>, row: u64)
     -> Option<Token>
 {
@@ -184,6 +216,9 @@ fn tokenize_ident(it: &mut Peekable<Enumerate<Chars>>, row: u64)
         ),
         "sub"       => Some (
             Token::SubKeyword (TokLoc {row: row, col: col_capture as u64})
+        ),
+        "load"       => Some (
+            Token::LoadKeyword (TokLoc {row: row, col: col_capture as u64})
         ),
         _          => None,
     };
@@ -439,6 +474,9 @@ pub fn tokenize_line(line: &str, row: u64) -> Vec<Token> {
             tokens.push(num_tok);
         }
         else if let Some (varname_tok) = tokenize_varname(&mut it, row) {
+            tokens.push(varname_tok);
+        }
+        else if let Some (varname_tok) = tokenize_funcname(&mut it, row) {
             tokens.push(varname_tok);
         }
         else if let Some (ident_tok) = tokenize_ident(&mut it, row) {

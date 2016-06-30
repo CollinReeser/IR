@@ -56,7 +56,8 @@ fn main() {
         s.clear();
     }
 
-    let node = parse(&tokens);
+    if let Some(node) = parse(&tokens) {
+        print_ast(&node);
+    }
 
-    print_ast(&node);
 }

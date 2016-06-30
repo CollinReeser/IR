@@ -44,16 +44,94 @@ impl fmt::Display for Variable {
 
 #[derive(Debug)]
 #[derive(Clone)]
+pub struct VarTypePair {
+    pub name: String,
+    pub typename: Type,
+}
+
+impl fmt::Display for VarTypePair {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "%{}:{}", self.name, self.typename)
+    }
+}
+
+#[derive(Debug)]
+#[derive(Clone)]
+pub struct FuncSig {
+    pub name: String,
+    pub typename: Type,
+    pub arglist: Vec<VarTypePair>,
+}
+
+impl fmt::Display for FuncSig {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut farglist = String::new();
+
+        if let Some ((last_elem, firsts)) = self.arglist.split_last() {
+            for arg in firsts {
+                farglist.push_str(
+                    &format!("{}, ", arg)
+                );
+            }
+
+            farglist.push_str(
+                &format!("{}", last_elem)
+            );
+        }
+
+        write!(f, "func {}:{} ({})", self.name, self.typename, farglist)
+    }
+}
+
+#[derive(Debug)]
+#[derive(Clone)]
+pub enum LoadValue {
+    LoadVariable (Variable),
+    LoadInteger (i64),
+}
+
+impl fmt::Display for LoadValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &LoadValue::LoadVariable (ref v) => write!(f, "%{}", v.name),
+            &LoadValue::LoadInteger (i) => write!(f, "{}", i),
+        }
+    }
+}
+
+#[derive(Debug)]
+#[derive(Clone)]
+pub enum Stmt {
+    AddInst  (VarTypePair, Variable, Variable),
+    SubInst  (VarTypePair, Variable, Variable),
+    LoadInst (VarTypePair, LoadValue),
+}
+
+#[derive(Debug)]
+#[derive(Clone)]
 pub enum Node {
-    AddInst (Type, Variable, Variable, Variable),
+    FuncDef (FuncSig, Vec<Stmt>),
 }
 
 pub fn print_ast(node: &Node) {
     match node {
-        &Node::AddInst (ref t, ref v1, ref v2, ref v3) => {
-            println!("add {}:{} {} {}", v1, t, v2, v3);
+        &Node::FuncDef (ref sig, ref stmt_list) => {
+            println!("{} {{", sig);
+            for stmt in stmt_list {
+                match stmt {
+                    &Stmt::AddInst (ref vtp, ref v2, ref v3) => {
+                        println!("    add  {} {} {}", vtp, v2, v3);
+                    }
+                    &Stmt::SubInst (ref vtp, ref v2, ref v3) => {
+                        println!("    sub  {} {} {}", vtp, v2, v3);
+                    }
+                    &Stmt::LoadInst (ref vtp, ref v2) => {
+                        println!("    load {} {}", vtp, v2);
+                    }
+                }
+            }
+            println!("}}");
         }
-        // _ => {},
     }
 }
 
@@ -93,18 +171,45 @@ fn parse_type(it: &mut Peekable<Iter<Token>>) -> Option<Type> {
     };
 }
 
-fn parse_var_type_pair(it: &mut Peekable<Iter<Token>>)
-    -> Option<(Variable, Type)>
+fn parse_var_type_pair(mut it: &mut Peekable<Iter<Token>>)
+    -> Option<VarTypePair>
 {
-    return if let Some (&&Token::VarName (ref target, ref tl)) = it.peek() {
+    return if let Some (&&Token::VarName (ref varname, ref tl)) = it.peek() {
         it.next();
 
         if let Some (&&Token::Colon (ref tl)) = it.peek() {
             it.next();
 
-            if let Some (type_node) = parse_type(it) {
+            if let Some (type_node) = parse_type(&mut it) {
+                Some (
+                    VarTypePair {name: varname.to_owned(), typename: type_node}
+                )
+            }
+            else {
+                panic!("Expected type, got trash: {:?}", tl);
+            }
+        }
+        else {
+            panic!("Expected ':', got trash: {:?}", tl);
+        }
+    }
+    else {
+        None
+    };
+}
+
+fn parse_func_type_pair(mut it: &mut Peekable<Iter<Token>>)
+    -> Option<(String, Type)>
+{
+    return if let Some (&&Token::FuncName (ref funcname, ref tl)) = it.peek() {
+        it.next();
+
+        if let Some (&&Token::Colon (ref tl)) = it.peek() {
+            it.next();
+
+            if let Some (type_node) = parse_type(&mut it) {
                 Some ((
-                    Variable {name: target.to_owned()}, type_node
+                    funcname.to_owned(), type_node
                 ))
             }
             else {
@@ -120,7 +225,7 @@ fn parse_var_type_pair(it: &mut Peekable<Iter<Token>>)
     };
 }
 
-fn parse_binary_input_vars(it: &mut Peekable<Iter<Token>>)
+fn parse_binary_input_vars(mut it: &mut Peekable<Iter<Token>>)
     -> Option<(Variable, Variable)>
 {
     return if let Some (&&Token::VarName (ref left_src, ref tl)) = it.peek() {
@@ -143,17 +248,59 @@ fn parse_binary_input_vars(it: &mut Peekable<Iter<Token>>)
     };
 }
 
-fn parse_add(mut it: &mut Peekable<Iter<Token>>) -> Option<Node> {
+fn parse_load_value(mut it: &mut Peekable<Iter<Token>>)
+    -> Option<LoadValue>
+{
+    return if let Some (&&Token::Integer (i, _)) = it.peek() {
+        it.next();
+
+        Some (LoadValue::LoadInteger (i))
+    }
+    else if let Some (&&Token::VarName (ref varname, _)) = it.peek() {
+        it.next();
+
+        Some (LoadValue::LoadVariable (Variable {name: varname.to_owned()}))
+    }
+    else {
+        None
+    };
+}
+
+fn parse_load(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
+    return if let Some (&&Token::LoadKeyword (ref tl)) = it.peek() {
+        it.next();
+
+        if let Some (dest_var_type_pair) = parse_var_type_pair(&mut it) {
+            if let Some (load_value) = parse_load_value(&mut it)
+            {
+                Some (Stmt::LoadInst (
+                    dest_var_type_pair,
+                    load_value,
+                ))
+            }
+            else {
+                panic!("Expected unary input var, got trash: {:?}", tl);
+            }
+        }
+        else {
+            panic!("Expected <var>:<type> pair, got trash: {:?}", tl);
+        }
+    }
+    else {
+        None
+    };
+}
+
+fn parse_add(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
     return if let Some (&&Token::AddKeyword (ref tl)) = it.peek() {
         it.next();
 
-        if let Some ((target_var, target_type)) = parse_var_type_pair(&mut it) {
+        if let Some (target_var_type_pair) = parse_var_type_pair(&mut it) {
             if let Some ((left_src, right_src))
                 = parse_binary_input_vars(&mut it)
             {
-                Some (Node::AddInst (
-                    target_type,
-                    target_var,
+                Some (Stmt::AddInst (
+                    target_var_type_pair,
                     left_src,
                     right_src,
                 ))
@@ -168,22 +315,156 @@ fn parse_add(mut it: &mut Peekable<Iter<Token>>) -> Option<Node> {
     }
     else {
         None
-    }
+    };
 }
 
-pub fn parse(tokens: &Vec<Token>) -> Node {
-    let mut it = tokens.iter().peekable();
+fn parse_sub(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
+    return if let Some (&&Token::SubKeyword (ref tl)) = it.peek() {
+        it.next();
 
-    while let Some (_) = it.peek() {
-        if let Some (node) = parse_add(&mut it) {
-            return node;
+        if let Some (target_var_type_pair) = parse_var_type_pair(&mut it) {
+            if let Some ((left_src, right_src))
+                = parse_binary_input_vars(&mut it)
+            {
+                Some (Stmt::SubInst (
+                    target_var_type_pair,
+                    left_src,
+                    right_src,
+                ))
+            }
+            else {
+                panic!("Expected binary input vars: {:?}", tl);
+            }
+        }
+        else {
+            panic!("Expected <var>:<type> pair: {:?}", tl);
+        }
+    }
+    else {
+        None
+    };
+}
+
+fn parse_arg_list (mut it: &mut Peekable<Iter<Token>>)
+    -> Vec<VarTypePair>
+{
+    let mut arg_list = Vec::new();
+
+    while let Some (target_var_type_pair) = parse_var_type_pair(&mut it) {
+        arg_list.push(target_var_type_pair);
+
+        if let Some (&&Token::Comma(_)) = it.peek() {
+            it.next();
+        }
+        else {
+            break;
         }
     }
 
-    return Node::AddInst (
-        Type::I8,
-        Variable {name: "s".to_string()},
-        Variable {name: "s".to_string()},
-        Variable {name: "s".to_string()}
-    );
+    return arg_list;
+}
+
+fn parse_func_sig(mut it: &mut Peekable<Iter<Token>>)
+    -> Option<FuncSig>
+{
+    return if let Some ((func_name, func_type))
+        = parse_func_type_pair(&mut it)
+    {
+
+        if let Some (&&Token::LParen (ref tl)) = it.peek() {
+            it.next();
+
+            let arg_list = parse_arg_list(it);
+
+            if let Some (&&Token::RParen (_)) = it.peek() {
+                it.next();
+
+                Some (
+                    FuncSig {
+                        name: func_name,
+                        typename: func_type,
+                        arglist: arg_list,
+                    }
+                )
+            }
+            else {
+                panic!("Expected ')', got trash: {:?} {:?}", it.peek(), tl);
+            }
+        }
+        else {
+            panic!("Expected '(', got trash somewhere");
+        }
+    }
+    else {
+        None
+    };
+}
+
+fn parse_func(mut it: &mut Peekable<Iter<Token>>) -> Option<Node> {
+    return if let Some (&&Token::FuncKeyword (ref tl)) = it.peek() {
+        it.next();
+
+        if let Some (target_func_sig) = parse_func_sig(&mut it) {
+
+            if let Some (&&Token::LBrace (ref tl)) = it.peek() {
+                it.next();
+
+                let stmt_list = parse_statements(&mut it);
+
+                if let Some (&&Token::RBrace (_)) = it.peek() {
+                    it.next();
+
+                    Some (
+                        Node::FuncDef (
+                            target_func_sig,
+                            stmt_list,
+                        )
+                    )
+                }
+                else {
+                    panic!("Expected '}}', got trash: {:?}", tl);
+                }
+            }
+            else {
+                panic!("Expected '{{', got trash: {:?}", tl);
+            }
+        }
+        else {
+            panic!("Expected 'FuncSig'");
+        }
+    }
+    else {
+        None
+    };
+}
+
+fn parse_statement(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
+    return if let Some (node) = parse_add(&mut it) {
+        Some (node)
+    }
+    else if let Some (node) = parse_sub(&mut it) {
+        Some (node)
+    }
+    else if let Some (node) = parse_load(&mut it) {
+        Some (node)
+    }
+    else {
+        None
+    };
+}
+
+fn parse_statements(mut it: &mut Peekable<Iter<Token>>) -> Vec<Stmt> {
+    let mut stmts = Vec::new();
+
+    while let Some (node) = parse_statement(&mut it) {
+        stmts.push(node);
+    }
+
+    return stmts;
+}
+
+pub fn parse(tokens: &Vec<Token>) -> Option<Node> {
+    let mut it = tokens.iter().peekable();
+
+    return parse_func(&mut it);
 }
