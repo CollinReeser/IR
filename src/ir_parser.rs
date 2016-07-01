@@ -13,7 +13,23 @@ pub enum Type {
     I64,
     F32,
     F64,
+    Ptr (Box<Type>),
     UserType (String),
+}
+
+pub fn is_promotable_to(left: &Type, right: &Type) -> bool {
+    return match (left, right) {
+        (&Type::I8, &Type::I8) => true,
+        (&Type::I16, &Type::I16) => true,
+        (&Type::I32, &Type::I32) => true,
+        (&Type::I64, &Type::I64) => true,
+        (&Type::F32, &Type::F32) => true,
+        (&Type::F64, &Type::F64) => true,
+        // (&Type::Ptr (ref t_l), &Type::Ptr (ref t_r)) => {
+        //     is_promotable_to(&*t_l, &*t_r)
+        // }
+        _ => false
+    }
 }
 
 impl fmt::Display for Type {
@@ -25,6 +41,7 @@ impl fmt::Display for Type {
             &Type::I64 => write!(f, "i64"),
             &Type::F32 => write!(f, "f32"),
             &Type::F64 => write!(f, "f64"),
+            &Type::Ptr (ref t) => write!(f, "{}*", t),
             &Type::UserType (ref s) => write!(f, "{}", s),
         }
     }
