@@ -79,22 +79,22 @@ impl fmt::Display for FuncSig {
             );
         }
 
-        write!(f, "func {}:{} ({})", self.name, self.typename, farglist)
+        write!(f, "func @{}:{} ({})", self.name, self.typename, farglist)
     }
 }
 
 #[derive(Debug)]
 #[derive(Clone)]
-pub enum LoadValue {
-    LoadVariable (Variable),
-    LoadInteger (i64),
+pub enum LetValue {
+    LetVariable (Variable),
+    LetInteger (i64),
 }
 
-impl fmt::Display for LoadValue {
+impl fmt::Display for LetValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &LoadValue::LoadVariable (ref v) => write!(f, "%{}", v.name),
-            &LoadValue::LoadInteger (i) => write!(f, "{}", i),
+            &LetValue::LetVariable (ref v) => write!(f, "%{}", v.name),
+            &LetValue::LetInteger (i) => write!(f, "{}", i),
         }
     }
 }
@@ -104,7 +104,7 @@ impl fmt::Display for LoadValue {
 pub enum Stmt {
     AddInst  (VarTypePair, Variable, Variable),
     SubInst  (VarTypePair, Variable, Variable),
-    LoadInst (VarTypePair, LoadValue),
+    LetInst (VarTypePair, LetValue),
 }
 
 #[derive(Debug)]
@@ -120,13 +120,13 @@ pub fn print_ast(node: &Node) {
             for stmt in stmt_list {
                 match stmt {
                     &Stmt::AddInst (ref vtp, ref v2, ref v3) => {
-                        println!("    add  {} {} {}", vtp, v2, v3);
+                        println!("    add   {} {} {}", vtp, v2, v3);
                     }
                     &Stmt::SubInst (ref vtp, ref v2, ref v3) => {
-                        println!("    sub  {} {} {}", vtp, v2, v3);
+                        println!("    sub   {} {} {}", vtp, v2, v3);
                     }
-                    &Stmt::LoadInst (ref vtp, ref v2) => {
-                        println!("    load {} {}", vtp, v2);
+                    &Stmt::LetInst (ref vtp, ref v2) => {
+                        println!("    let   {} {}", vtp, v2);
                     }
                 }
             }
@@ -248,34 +248,34 @@ fn parse_binary_input_vars(mut it: &mut Peekable<Iter<Token>>)
     };
 }
 
-fn parse_load_value(mut it: &mut Peekable<Iter<Token>>)
-    -> Option<LoadValue>
+fn parse_let_value(mut it: &mut Peekable<Iter<Token>>)
+    -> Option<LetValue>
 {
     return if let Some (&&Token::Integer (i, _)) = it.peek() {
         it.next();
 
-        Some (LoadValue::LoadInteger (i))
+        Some (LetValue::LetInteger (i))
     }
     else if let Some (&&Token::VarName (ref varname, _)) = it.peek() {
         it.next();
 
-        Some (LoadValue::LoadVariable (Variable {name: varname.to_owned()}))
+        Some (LetValue::LetVariable (Variable {name: varname.to_owned()}))
     }
     else {
         None
     };
 }
 
-fn parse_load(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
-    return if let Some (&&Token::LoadKeyword (ref tl)) = it.peek() {
+fn parse_let(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
+    return if let Some (&&Token::LetKeyword (ref tl)) = it.peek() {
         it.next();
 
         if let Some (dest_var_type_pair) = parse_var_type_pair(&mut it) {
-            if let Some (load_value) = parse_load_value(&mut it)
+            if let Some (let_value) = parse_let_value(&mut it)
             {
-                Some (Stmt::LoadInst (
+                Some (Stmt::LetInst (
                     dest_var_type_pair,
-                    load_value,
+                    let_value,
                 ))
             }
             else {
@@ -445,7 +445,7 @@ fn parse_statement(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
     else if let Some (node) = parse_sub(&mut it) {
         Some (node)
     }
-    else if let Some (node) = parse_load(&mut it) {
+    else if let Some (node) = parse_let(&mut it) {
         Some (node)
     }
     else {

@@ -15,7 +15,7 @@ pub enum Token {
     FuncKeyword (TokLoc),
     AddKeyword (TokLoc),
     SubKeyword (TokLoc),
-    LoadKeyword (TokLoc),
+    LetKeyword (TokLoc),
 
     VarName (String, TokLoc),
     FuncName (String, TokLoc),
@@ -25,6 +25,7 @@ pub enum Token {
     RParen (TokLoc),
     LBrace (TokLoc),
     RBrace (TokLoc),
+    Asterisk (TokLoc),
 
     Integer (i64, TokLoc),
 
@@ -217,8 +218,8 @@ fn tokenize_ident(it: &mut Peekable<Enumerate<Chars>>, row: u64)
         "sub"       => Some (
             Token::SubKeyword (TokLoc {row: row, col: col_capture as u64})
         ),
-        "load"       => Some (
-            Token::LoadKeyword (TokLoc {row: row, col: col_capture as u64})
+        "let"       => Some (
+            Token::LetKeyword (TokLoc {row: row, col: col_capture as u64})
         ),
         _          => None,
     };
@@ -320,6 +321,10 @@ fn tokenize_op(it: &mut Peekable<Enumerate<Chars>>, row: u64) -> Option<Token> {
             '#' => {
                 it.next();
                 Some (Token::Pound (TokLoc {row: row, col: col as u64}))
+            }
+            '*' => {
+                it.next();
+                Some (Token::Asterisk (TokLoc {row: row, col: col as u64}))
             }
             ':' => {
                 it.next();
