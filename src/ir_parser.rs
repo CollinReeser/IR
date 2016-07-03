@@ -13,6 +13,7 @@ pub enum Type {
     I64,
     F32,
     F64,
+    Void,
     Ptr (Box<Type>),
     UserType (String),
 }
@@ -25,6 +26,7 @@ pub fn is_promotable_to(left: &Type, right: &Type) -> bool {
         (&Type::I64, &Type::I64) => true,
         (&Type::F32, &Type::F32) => true,
         (&Type::F64, &Type::F64) => true,
+        (&Type::Void, &Type::Void) => true,
         // (&Type::Ptr (ref t_l), &Type::Ptr (ref t_r)) => {
         //     is_promotable_to(&*t_l, &*t_r)
         // }
@@ -41,6 +43,7 @@ impl fmt::Display for Type {
             &Type::I64 => write!(f, "i64"),
             &Type::F32 => write!(f, "f32"),
             &Type::F64 => write!(f, "f64"),
+            &Type::Void => write!(f, "void"),
             &Type::Ptr (ref t) => write!(f, "{}*", t),
             &Type::UserType (ref s) => write!(f, "{}", s),
         }
@@ -121,7 +124,8 @@ impl fmt::Display for LetValue {
 pub enum Stmt {
     AddInst  (VarTypePair, Variable, Variable),
     SubInst  (VarTypePair, Variable, Variable),
-    LetInst (VarTypePair, LetValue),
+    LetInst  (VarTypePair, LetValue),
+    RetInst  (Option<Variable>),
 }
 
 #[derive(Debug)]
@@ -144,6 +148,14 @@ pub fn print_ast(node: &Node) {
                     }
                     &Stmt::LetInst (ref vtp, ref v2) => {
                         println!("    let   {} {}", vtp, v2);
+                    }
+                    &Stmt::RetInst (ref opt) => {
+                        if let &Some (ref var) = opt {
+                            println!("    ret   {}", var);
+                        }
+                        else {
+                            println!("    ret   void");
+                        }
                     }
                 }
             }
@@ -308,6 +320,44 @@ fn parse_let(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
     };
 }
 
+fn parse_ret_value(mut it: &mut Peekable<Iter<Token>>)
+    -> Option<Option<Variable>>
+{
+    return if let Some (&&Token::VarName (ref varname, _)) = it.peek() {
+        it.next();
+
+        Some (Some (Variable {name: varname.to_owned()}))
+    }
+    else if let Some (&&Token::VoidKeyword (_)) = it.peek() {
+        it.next();
+
+        Some (None)
+    }
+    else {
+        None
+    };
+}
+
+
+fn parse_ret(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
+    return if let Some (&&Token::RetKeyword (ref tl)) = it.peek() {
+        it.next();
+
+        if let Some (ret_value) = parse_ret_value(&mut it)
+        {
+            Some (Stmt::RetInst (
+                ret_value
+            ))
+        }
+        else {
+            panic!("Expected variable, got trash: {:?}", tl);
+        }
+    }
+    else {
+        None
+    }
+}
+
 fn parse_add(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
     return if let Some (&&Token::AddKeyword (ref tl)) = it.peek() {
         it.next();
@@ -463,6 +513,9 @@ fn parse_statement(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
         Some (node)
     }
     else if let Some (node) = parse_let(&mut it) {
+        Some (node)
+    }
+    else if let Some (node) = parse_ret(&mut it) {
         Some (node)
     }
     else {

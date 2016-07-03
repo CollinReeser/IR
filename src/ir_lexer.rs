@@ -16,6 +16,8 @@ pub enum Token {
     AddKeyword (TokLoc),
     SubKeyword (TokLoc),
     LetKeyword (TokLoc),
+    RetKeyword (TokLoc),
+    CallKeyword (TokLoc),
 
     VarName (String, TokLoc),
     FuncName (String, TokLoc),
@@ -220,6 +222,9 @@ fn tokenize_ident(it: &mut Peekable<Enumerate<Chars>>, row: u64)
         ),
         "let"       => Some (
             Token::LetKeyword (TokLoc {row: row, col: col_capture as u64})
+        ),
+        "ret"       => Some (
+            Token::RetKeyword (TokLoc {row: row, col: col_capture as u64})
         ),
         _          => None,
     };

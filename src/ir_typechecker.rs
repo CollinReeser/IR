@@ -3,7 +3,8 @@ use ir_parser::*;
 use std::collections::HashMap;
 
 fn typecheck_stmts<'a, 'b>(
-    stmts: &'a Vec<Stmt>, sym_tab: &'b mut HashMap<&'b str, &'b Type>
+    stmts: &'a Vec<Stmt>, ret_type: &'a Type,
+    sym_tab: &'b mut HashMap<&'b str, &'b Type>
 ) -> bool
 where 'a: 'b
 {
@@ -97,6 +98,22 @@ where 'a: 'b
 
                 sym_tab.insert(&dest_lval.name, &dest_lval.typename);
             }
+            &Stmt::RetInst (ref rval) => {
+                if let &Some (ref var) = rval {
+                    if let Some (val_type)
+                        = sym_tab.get::<str>(&&var.name)
+                    {
+                        if !is_promotable_to(&val_type, &ret_type) {
+                            return false;
+                        }
+                    }
+                    else {
+                        if !is_promotable_to(&Type::Void, &ret_type) {
+                            return false;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -117,7 +134,7 @@ where 'a: 'b
         sym_tab.insert(&arg.name, &arg.typename);
     }
 
-    return typecheck_stmts(stmts, sym_tab);
+    return typecheck_stmts(stmts, &sig.typename, sym_tab);
 }
 
 pub fn typecheck(ast: &Node) -> bool {
