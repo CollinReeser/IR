@@ -2,6 +2,8 @@ extern crate ir;
 
 use ir::ir_lexer::*;
 use ir::ir_parser::*;
+use ir::ir_typechecker::*;
+use ir::ir_reg_allocer::*;
 
 use std::env;
 
@@ -13,7 +15,6 @@ use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::path::Path;
-
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -57,7 +58,14 @@ fn main() {
     }
 
     if let Some(node) = parse(&tokens) {
-        print_ast(&node);
+        if !typecheck(&node) {
+            panic!("Source does not typecheck!");
+        }
+
+        let rig = generate_rig(&node);
+
+        println!("{}", dump_dot_format(&rig));
     }
 
 }
+

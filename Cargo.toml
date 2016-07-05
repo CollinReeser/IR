@@ -5,3 +5,4 @@ authors = ["Collin Reeser <collin.reeser@gmail.com>"]
 
 [dependencies]
 getopts = "*"
+petgraph = "*"
