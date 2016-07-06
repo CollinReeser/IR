@@ -139,6 +139,142 @@ fn add_liveset_to_rig<'a>(
     }
 }
 
+fn active_edges(rig: &GraphMap<&str, i64>, active_node: &str) -> i64 {
+    let mut active_count = 0;
+
+    for node in rig.nodes() {
+        if node != active_node {
+            continue;
+        }
+
+        for (_, &i) in rig.edges(node) {
+            if i > 0 {
+                active_count += 1;
+            }
+        }
+    }
+
+    return active_count;
+}
+
+fn disconnect_k_connected_nodes<'a>(rig: &mut GraphMap<&'a str, i64>, k: i64)
+    -> Vec<&'a str>
+{
+    let mut disconnected_nodes = Vec::new();
+
+    let nodes = rig.nodes().collect::<Vec<&str>>();
+
+    let mut iter = nodes.iter();
+    for node in nodes.iter() {
+        let active_count = active_edges(&rig, node);
+
+        if k != active_count {
+            continue;
+        }
+
+        let mut disconnected = false;
+
+        for neighbor in iter.clone() {
+            if node != neighbor {
+                if let Some (i) = rig.edge_weight_mut(node, neighbor) {
+                    if *i > 0 {
+                        disconnected = true;
+                        *i = 0;
+                    }
+                }
+            }
+        }
+
+        if disconnected {
+            disconnected_nodes.push(*node);
+        }
+
+        iter.next();
+    }
+
+    return disconnected_nodes;
+}
+
+fn reconnect_edges(rig: &mut GraphMap<&str, i64>) {
+    let nodes = rig.nodes().collect::<Vec<&str>>();
+
+    let mut iter = nodes.iter();
+    for node in nodes.iter() {
+        for neighbor in iter.clone() {
+
+            if node != neighbor {
+                if let Some (i) = rig.edge_weight_mut(node, neighbor) {
+                    *i = 1;
+                }
+            }
+        }
+
+        iter.next();
+    }
+}
+
+fn generate_coloring_stack<'a>(mut rig: &mut GraphMap<&'a str, i64>, k: i64)
+    -> Option<Vec<&'a str>>
+{
+    let mut k_minus = k - 1;
+
+    let mut stack = Vec::new();
+
+    let mut ignore = HashSet::new();
+
+    while k_minus > 0 {
+        let mut sub_stack = disconnect_k_connected_nodes(&mut rig, k_minus);
+
+        if sub_stack.len() > 0 {
+            for node in sub_stack.drain(..) {
+                if ignore.get(node).is_none() {
+                    stack.push(node);
+                    ignore.insert(node);
+                }
+            }
+        }
+        else {
+            k_minus -= 1;
+        }
+    }
+
+    for node in rig.nodes() {
+        let active_count = active_edges(&rig, node);
+
+        if active_count == 0 {
+            if ignore.get(node).is_none() {
+                stack.push(node);
+                ignore.insert(node);
+            }
+        }
+        else {
+            return None;
+        }
+    }
+
+    return Some(stack);
+}
+
+pub fn find_minimum_k<'a>(mut rig: &mut GraphMap<&'a str, i64>, bound: i64)
+    -> Option<(Vec<&'a str>, i64)>
+{
+    reconnect_edges(&mut rig);
+
+    let mut k = 2;
+    loop {
+        if let Some (stack) = generate_coloring_stack(&mut rig, k) {
+            return Some((stack, k));
+        }
+        else {
+            k += 1;
+        }
+
+        if k == bound {
+            return None;
+        }
+    }
+}
+
 pub fn dump_dot_format(rig: &GraphMap<&str, i64>) -> String {
 
     let mut s = String::new();
@@ -155,7 +291,11 @@ pub fn dump_dot_format(rig: &GraphMap<&str, i64>) -> String {
     let mut already_linked = HashSet::new();
 
     for node in rig.nodes() {
-        for (connected, _) in rig.edges(node) {
+        for (connected, &edge_val) in rig.edges(node) {
+            if edge_val == 0 {
+                continue;
+            }
+
             match (node_indices.get(node), node_indices.get(connected)) {
                 (Some (i), Some (j)) => {
                     let fmt = format!("    {} -- {}\n", i, j);
@@ -188,8 +328,6 @@ pub fn generate_rig(ast: &Node) -> GraphMap<&str, i64> {
             let mut rig: GraphMap<&str, i64> = GraphMap::new();
 
             let mut liveness_ranges = get_funcdef_liveness_ranges(&stmts);
-
-            println!("{:?}", liveness_ranges);
 
             for liveset in liveness_ranges.drain(..) {
                 add_liveset_to_rig(liveset, &mut rig);

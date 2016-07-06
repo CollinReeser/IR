@@ -62,10 +62,12 @@ fn main() {
             panic!("Source does not typecheck!");
         }
 
-        let rig = generate_rig(&node);
-
+        let mut rig = generate_rig(&node);
         println!("{}", dump_dot_format(&rig));
-    }
 
+        if let Some((stack, used_k)) = find_minimum_k(&mut rig, 16) {
+            println!("K={} Color Stack: {:?}", used_k, stack);
+        }
+    }
 }
 
