@@ -114,6 +114,9 @@ where 'a: 'b
                     }
                 }
             }
+            &Stmt::CallInst (ref dest_lval, ref func_rval, ref vars_rval) => {
+                return true;
+            }
         }
     }
 

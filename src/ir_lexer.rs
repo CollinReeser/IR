@@ -226,6 +226,9 @@ fn tokenize_ident(it: &mut Peekable<Enumerate<Chars>>, row: u64)
         "ret"       => Some (
             Token::RetKeyword (TokLoc {row: row, col: col_capture as u64})
         ),
+        "call"      => Some (
+            Token::CallKeyword (TokLoc {row: row, col: col_capture as u64})
+        ),
         _          => None,
     };
 

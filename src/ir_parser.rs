@@ -64,6 +64,18 @@ impl fmt::Display for Variable {
 
 #[derive(Debug)]
 #[derive(Clone)]
+pub struct Function {
+    pub name: String,
+}
+
+impl fmt::Display for Function {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "@{}", self.name)
+    }
+}
+
+#[derive(Debug)]
+#[derive(Clone)]
 pub struct VarTypePair {
     pub name: String,
     pub typename: Type,
@@ -126,6 +138,7 @@ pub enum Stmt {
     SubInst  (VarTypePair, Variable, Variable),
     LetInst  (VarTypePair, LetValue),
     RetInst  (Option<Variable>),
+    CallInst (VarTypePair, Function, Vec<Variable>)
 }
 
 #[derive(Debug)]
@@ -156,6 +169,16 @@ pub fn print_ast(node: &Node) {
                         else {
                             println!("    ret   void");
                         }
+                    }
+                    &Stmt::CallInst (ref vtp, ref f, ref vars) => {
+                        print!("    call   {} {}(", vtp, f);
+                        for x in 0..vars.len() {
+                            if x > 0 {
+                                print!(", ");
+                            }
+                            print!("{}", vars[x]);
+                        }
+                        println!(")");
                     }
                 }
             }
@@ -505,6 +528,74 @@ fn parse_func(mut it: &mut Peekable<Iter<Token>>) -> Option<Node> {
     };
 }
 
+fn parse_param_list (mut it: &mut Peekable<Iter<Token>>)
+    -> Vec<Variable>
+{
+    let mut param_list = Vec::new();
+
+    while let Some (&&Token::VarName (ref var_name, _)) = it.peek() {
+        it.next();
+
+        param_list.push(Variable {name: var_name.to_owned()});
+
+        if let Some (&&Token::Comma(_)) = it.peek() {
+            it.next();
+        }
+        else {
+            break;
+        }
+    }
+
+    return param_list;
+}
+
+fn parse_func_call(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
+    return if let Some (&&Token::CallKeyword (_)) = it.peek() {
+        it.next();
+
+        if let Some (target_var_type_pair) = parse_var_type_pair(&mut it) {
+
+            if let Some (&&Token::FuncName (ref funcname, _)) = it.peek() {
+                it.next();
+
+                if let Some (&&Token::LParen (_)) = it.peek() {
+                    it.next();
+
+                    let param_list = parse_param_list(it);
+
+                    if let Some (&&Token::RParen (_)) = it.peek() {
+                        it.next();
+
+                        Some (
+                            Stmt::CallInst (
+                                target_var_type_pair,
+                                Function {name: funcname.to_owned()},
+                                param_list,
+                            )
+                        )
+                    }
+                    else {
+                        panic!("Expected ')', got trash somewhere");
+                    }
+                }
+                else {
+                    panic!("Expected '(', got trash somewhere");
+                }
+            }
+            else {
+                panic!("Expected FuncName");
+            }
+        }
+        else {
+            panic!("Expected return VarTypePair");
+        }
+    }
+    else {
+        None
+    };
+}
+
+
 fn parse_statement(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
     return if let Some (node) = parse_add(&mut it) {
         Some (node)
@@ -516,6 +607,9 @@ fn parse_statement(mut it: &mut Peekable<Iter<Token>>) -> Option<Stmt> {
         Some (node)
     }
     else if let Some (node) = parse_ret(&mut it) {
+        Some (node)
+    }
+    else if let Some (node) = parse_func_call(&mut it) {
         Some (node)
     }
     else {

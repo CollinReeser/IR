@@ -67,6 +67,20 @@ fn stmt_liveness<'a, 'b>(stmt: &'a Stmt)
                 }
             }
         }
+        &Stmt::CallInst (
+            VarTypePair {ref name, typename: _},
+            Function {name: _},
+            ref vars_rval,
+        ) => {
+            let mut rvars: Vec<&str> = Vec::new();
+            for var_rval in vars_rval {
+                rvars.push(&var_rval.name);
+            }
+            return (
+                vec!(&name),
+                rvars
+            )
+        }
     }
 }
 
