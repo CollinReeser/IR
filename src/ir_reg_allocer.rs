@@ -4,6 +4,24 @@ use petgraph::*;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
+use rand::*;
+
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+struct Color {
+    red: u8,
+    green: u8,
+    blue: u8,
+}
+
+impl Color {
+    fn new() -> Self {
+        return Color {
+            red: random::<u8>() % 0xFF,
+            green: random::<u8>() % 0xFF,
+            blue: random::<u8>() % 0xFF
+        };
+    }
+}
 
 // Left Vec<String> is remove list
 // Right Vec<String> is add list
@@ -213,9 +231,15 @@ fn reconnect_edges(rig: &mut GraphMap<&str, i64>) {
     }
 }
 
+/// Given a graph and a target K, first reconnect any disconnected edges, then
+/// attempt to iteratively disconnect nodes from the graph to generate a
+/// coloring stack, then (regardless of success or failure) reconnect any
+/// disconnected edges, then return either Some(coloring stack) or None
 fn generate_coloring_stack<'a>(mut rig: &mut GraphMap<&'a str, i64>, k: i64)
     -> Option<Vec<&'a str>>
 {
+    reconnect_edges(rig);
+
     let mut k_minus = k - 1;
 
     let mut stack = Vec::new();
@@ -238,6 +262,8 @@ fn generate_coloring_stack<'a>(mut rig: &mut GraphMap<&'a str, i64>, k: i64)
         }
     }
 
+    let mut failure = false;
+
     for node in rig.nodes() {
         let active_count = active_edges(&rig, node);
 
@@ -248,18 +274,133 @@ fn generate_coloring_stack<'a>(mut rig: &mut GraphMap<&'a str, i64>, k: i64)
             }
         }
         else {
-            return None;
+            failure = true;
         }
     }
 
-    return Some(stack);
+    reconnect_edges(rig);
+
+    return if !failure {
+        Some(stack)
+    }
+    else {
+        None
+    };
+
 }
 
+fn color_mappings<'a>(
+    rig: &mut GraphMap<&'a str, i64>, stack: &Vec<&'a str>, k: i64
+)
+    -> HashMap<&'a str, Color>
+{
+    let mut colors = HashSet::new();
+
+    for _ in 0..k {
+        colors.insert(Color::new());
+    }
+
+    let mut color_map: HashMap<&'a str, Color> = HashMap::new();
+
+    for val in stack {
+        for node in rig.nodes() {
+            if *val == node {
+                let mut colors_taken = HashSet::new();
+
+                for neighbor in rig.neighbors(node) {
+                    if let Some (color) = color_map.get(neighbor) {
+                        colors_taken.insert(color.clone());
+                    }
+                }
+
+                let mut assigned = false;
+
+                for color in colors.iter() {
+                    if !colors_taken.contains(color) {
+                        color_map.insert(val, color.clone());
+                        assigned = true;
+                    }
+                }
+
+                if !assigned {
+                    panic!("Could not assign color to node {}", val);
+                }
+            }
+        }
+    }
+
+    return color_map;
+}
+
+pub fn dump_colored_graph(rig: &mut GraphMap<&str, i64>) -> String {
+    if let Some((stack, used_k)) = find_minimum_k(rig, 16) {
+        let color_map = color_mappings(rig, &stack, used_k);
+
+        let mut s = String::new();
+        s.push_str("graph {\n");
+
+        let mut node_indices = HashMap::new();
+
+        for (i, node) in rig.nodes().enumerate() {
+            if let Some (color) = color_map.get(node) {
+                s.push_str(
+                    &format!(
+                        "    {} [label=\"{}\", style=filled, fillcolor=\"#{:x}{:x}{:x}\"]\n",
+                        i, node, color.red, color.green, color.blue
+                    )
+                );
+            }
+            else {
+                s.push_str(&format!("    {} [label=\"{}\"]\n", i, node));
+            }
+
+            node_indices.insert(node, i);
+        }
+
+        let mut already_linked = HashSet::new();
+
+        for node in rig.nodes() {
+            for (connected, &edge_val) in rig.edges(node) {
+                if edge_val == 0 {
+                    continue;
+                }
+
+                match (node_indices.get(node), node_indices.get(connected)) {
+                    (Some (i), Some (j)) => {
+                        let fmt = format!("    {} -- {}\n", i, j);
+                        let key = if i <= j {
+                            format!("{} {}\n", i, j)
+                        }
+                        else {
+                            format!("{} {}\n", j, i)
+                        };
+
+
+                        if !already_linked.contains(&key) {
+                            s.push_str(&fmt);
+                            already_linked.insert(key);
+                        }
+                    }
+                    _ => panic!("Unreachable"),
+                }
+            }
+        }
+
+        s.push_str("}");
+
+        return s;
+    }
+    else {
+        return "".to_owned();
+    }
+}
+
+/// Iteratively increase K until a sufficient K is found such that the graph can
+/// be K-colored. Yield both the coloring stack and the determined-sufficient K
+/// on success. bound is one past the maximum K to test.
 pub fn find_minimum_k<'a>(mut rig: &mut GraphMap<&'a str, i64>, bound: i64)
     -> Option<(Vec<&'a str>, i64)>
 {
-    reconnect_edges(&mut rig);
-
     let mut k = 2;
     loop {
         if let Some (stack) = generate_coloring_stack(&mut rig, k) {
@@ -276,7 +417,6 @@ pub fn find_minimum_k<'a>(mut rig: &mut GraphMap<&'a str, i64>, bound: i64)
 }
 
 pub fn dump_dot_format(rig: &GraphMap<&str, i64>) -> String {
-
     let mut s = String::new();
     s.push_str("graph {\n");
 

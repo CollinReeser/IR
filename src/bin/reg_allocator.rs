@@ -66,8 +66,10 @@ fn main() {
         println!("{}", dump_dot_format(&rig));
 
         if let Some((stack, used_k)) = find_minimum_k(&mut rig, 16) {
-            println!("K={} Color Stack: {:?}", used_k, stack);
+            println!("K={} Coloring Stack: {:?}", used_k, stack);
         }
+
+        println!("Colored:\n{}", dump_colored_graph(&mut rig));
     }
 }
 
